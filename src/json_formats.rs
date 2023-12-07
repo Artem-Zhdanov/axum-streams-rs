@@ -111,8 +111,8 @@ where
     }
 }
 
-const JSON_ARRAY_BEGIN_BYTES: &[u8] = "[".as_bytes();
-const JSON_ARRAY_END_BYTES: &[u8] = "]".as_bytes();
+const JSON_ARRAY_BEGIN_BYTES: &[u8] = r#"{"jobs": ["#.as_bytes();
+const JSON_ARRAY_END_BYTES: &[u8] = "]}".as_bytes();
 const JSON_ARRAY_SEP_BYTES: &[u8] = ",".as_bytes();
 
 const JSON_NL_SEP_BYTES: &[u8] = "\n".as_bytes();
