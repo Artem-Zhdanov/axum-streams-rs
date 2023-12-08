@@ -7,11 +7,17 @@ use http::HeaderMap;
 use serde::Serialize;
 use std::io::Write;
 
-pub struct JsonArrayStreamFormat;
+pub struct JsonArrayStreamFormat {
+    beginning_bytes: String,
+    ending_bytes: String,
+}
 
 impl JsonArrayStreamFormat {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(beginning_bytes: &str, ending_bytes: &str) -> Self {
+        Self {
+            beginning_bytes: beginning_bytes.to_string(),
+            ending_bytes: ending_bytes.to_string(),
+        }
     }
 }
 
@@ -46,15 +52,17 @@ where
             })
         });
 
-        let prepend_stream: BoxStream<Result<axum::body::Bytes, axum::Error>> =
-            Box::pin(futures_util::stream::once(futures_util::future::ready(
-                Ok::<_, axum::Error>(axum::body::Bytes::from(JSON_ARRAY_BEGIN_BYTES)),
-            )));
+        let prepend_stream: BoxStream<Result<axum::body::Bytes, axum::Error>> = Box::pin(
+            futures_util::stream::once(futures_util::future::ready(Ok::<_, axum::Error>(
+                axum::body::Bytes::from(self.beginning_bytes.clone().into_bytes()),
+            ))),
+        );
 
-        let append_stream: BoxStream<Result<axum::body::Bytes, axum::Error>> =
-            Box::pin(futures_util::stream::once(futures_util::future::ready(
-                Ok::<_, axum::Error>(axum::body::Bytes::from(JSON_ARRAY_END_BYTES)),
-            )));
+        let append_stream: BoxStream<Result<axum::body::Bytes, axum::Error>> = Box::pin(
+            futures_util::stream::once(futures_util::future::ready(Ok::<_, axum::Error>(
+                axum::body::Bytes::from(self.ending_bytes.clone().into_bytes()),
+            ))),
+        );
 
         Box::pin(prepend_stream.chain(stream_bytes.chain(append_stream)))
     }
@@ -111,19 +119,19 @@ where
     }
 }
 
-const JSON_ARRAY_BEGIN_BYTES: &[u8] = r#"{"jobs": ["#.as_bytes();
-const JSON_ARRAY_END_BYTES: &[u8] = "]}".as_bytes();
 const JSON_ARRAY_SEP_BYTES: &[u8] = ",".as_bytes();
-
 const JSON_NL_SEP_BYTES: &[u8] = "\n".as_bytes();
 
 impl<'a> crate::StreamBodyAs<'a> {
-    pub fn json_array<S, T>(stream: S) -> Self
+    pub fn json_array<S, T>(stream: S, beginning_bytes: &str, ending_bytes: &str) -> Self
     where
         T: Serialize + Send + Sync + 'static,
         S: Stream<Item = T> + 'a + Send,
     {
-        Self::new(JsonArrayStreamFormat::new(), stream)
+        Self::new(
+            JsonArrayStreamFormat::new(beginning_bytes, ending_bytes),
+            stream,
+        )
     }
 
     pub fn json_nl<S, T>(stream: S) -> Self
@@ -161,7 +169,7 @@ mod tests {
 
         let app = Router::new().route(
             "/",
-            get(|| async { StreamBodyAs::new(JsonArrayStreamFormat::new(), test_stream) }),
+            get(|| async { StreamBodyAs::new(JsonArrayStreamFormat::new("[", "]"), test_stream) }),
         );
 
         let client = TestClient::new(app);
@@ -223,3 +231,6 @@ mod tests {
         assert_eq!(body, expected_json);
     }
 }
+
+// const JSON_ARRAY_BEGIN_BYTES: &[u8] = r#"{"jobs": ["#.as_bytes();
+// const JSON_ARRAY_END_BYTES: &[u8] = "]}".as_bytes();
